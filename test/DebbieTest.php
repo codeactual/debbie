@@ -1,4 +1,7 @@
 <?php
+/**
+ * Requires sudo access to `dpkg`.
+ */
 
 use \Debbie\Debbie;
 
@@ -18,7 +21,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
       'maintainer' => 'DebbieTest Author <debbie@codeactual.com>',
       'postinst' => "#!/bin/sh\necho ''",
       'section' => 'test',
-      'shortName' => 'debbie-test-' . uniqid(),
+      'shortName' => 'debbie-test',
       'version' => '1.2.3-4.5',
       'workspaceBasedir' => '/tmp/debbietest-workspace',
     );
@@ -36,9 +39,12 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   public function tearDown()
   {
     parent::tearDown();
+
     if ($this->isDebInstalled($this->shortName)) {
       $this->uninstallDeb($this->shortName);
     }
+
+    system("rm -rf {$this->maxConfig['workspaceBasedir']}/*");
   }
 
   /**
@@ -100,6 +106,27 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
+   * Assert a Debbie::__construct() configuration array matches the dpkg-deb
+   * information of a built package.
+   *
+   * @param string $info getDebInfo() output.
+   * @param array $config
+   * @return void
+   */
+  public function assertConfigMatchesDebInfo($info, array $config)
+  {
+    $this->assertContains("Package: {$config['shortName']}", $info);
+    $this->assertContains("Version: {$config['version']}", $info);
+    $this->assertContains("Section: {$config['section']}", $info);
+    $this->assertContains("Priority: {$config['priority']}", $info);
+    $this->assertContains("Architecture: {$config['arch']}", $info);
+    $dependsStr = implode(', ', ($config['depends'] ?: array()));
+    $this->assertContains("Depends: {$dependsStr}\n", $info);
+    $this->assertContains("Maintainer: {$config['maintainer']}", $info);
+    $this->assertContains("Description: {$config['description']}", $info);
+  }
+
+  /**
    * @group appliesDefaultConfig
    * @test
    */
@@ -115,6 +142,28 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->assertSame('optional', $actual['priority']);
     $this->assertSame(array(), $actual['sources']);
     $this->assertSame(Debbie::DEFAULT_WORKSPACE_BASEDIR, $actual['workspaceBasedir']);
+    $info = $this->getDebInfo($deb->build());
+    $this->assertConfigMatchesDebInfo($info, $this->minConfig);
+  }
+
+  /**
+   * @group appliesCustomConfig
+   * @test
+   */
+  public function appliesCustomConfig()
+  {
+    $deb = new Debbie($this->maxConfig);
+    $actual = $deb->getConfig();
+
+    // applyConfigDefaults() adds this dpkg-deb requirement
+    $this->maxConfig['postinst'] .= "\n";
+
+    foreach ($this->maxConfig as $key => $value) {
+      $this->assertSame($value, $actual[$key]);
+    }
+
+    $info = $this->getDebInfo($deb->build());
+    $this->assertConfigMatchesDebInfo($info, $this->maxConfig);
   }
 
   /**
@@ -153,89 +202,59 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
-   * @group validatesConfig
+   * @group detectsEmptyConfigs
    * @test
    */
-  public function validatesConfig()
+  public function detectsEmptyConfigs()
   {
-    // TODO check other tests for overlap
-    $this->markTestIncomplete();
+    $deb = new Debbie($this->maxConfig);
+    $keys = $deb->getNonEmptyConfigKeys();
+    foreach ($keys as $key) {
+      $incompleteConfig = $this->maxConfig;
+      try {
+        unset($incompleteConfig[$key]);
+        $deb->validateConfig($incompleteConfig);
+        $this->fail("did not detect empty '{$key}'");
+      } catch (Exception $e) {
+        $this->assertContains(
+          "{$key} configuration value is required",
+          $e->getMessage()
+        );
+      }
+    }
   }
 
   /**
-   * @group appliesDefaultConfig2
+   * @group detectsMissingSheBang
    * @test
    */
-  public function appliesDefaultConfig2()
+  public function detectsMissingSheBang()
   {
-    // TODO check other tests for overlap
-    $this->markTestIncomplete();
-    /*$deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'depends' => $this->depends,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
+    $this->maxConfig['postinst'] = 'echo "text"';
+    try {
+      $deb = new Debbie($this->maxConfig);
+      $this->fail('did not detect missing shebang');
+    } catch (Exception $e) {
+      $message = $e->getMessage();
+    }
+    $this->assertRegExp(
+      '/' . $this->shortName . ': shebang directive required/',
+      $message
     );
+  }
 
-    $versionDir = $deb->getVersionDir();
-    $this->assertContains("{$this->shortName}/{$this->version}", $versionDir);
-
-    $expectedMinute = date('Ymd-Hi');
-    $buildDir = $deb->getBuildDir();
-    $this->assertContains(
-      "{$versionDir}/{$expectedMinute}",
-      $buildDir
-    );
-
-    $pkgDir = $deb->getPkgDir();
-    $this->assertContains(
-      "{$buildDir}/{$this->shortName}_{$this->version}_all",
-      $pkgDir
-    );
-
-    // custom
-    $deb = new Debbie(
-      array(
-        'arch' => $this->arch,
-        'depends' => $this->depends,
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'section' => $this->section,
-        'shortName' => $this->shortName,
-        'version' => $this->version
-      )
-    );
-    $info = $this->getDebInfo($deb->build());
-      'depends' => array('pkg1', 'pkg2', 'pkg3'),
-    $dependsStr = implode(', ', $this->maxConfig['depends']);
-    $this->assertContains("Depends: {$dependsStr}", $info);
-    $this->assertContains("Section: {$this->section}", $info);
-    $this->assertContains("Architecture: {$this->arch}", $info);
-
-    // defaults
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
-    $info = $this->getDebInfo($deb->build());
-    $this->assertContains("Depends: \n", $info);
-    $this->assertContains('Section: web', $info);
-    $this->assertContains('Architecture: all', $info);
-
-
-    @TODO priority
-    @TODO maintainer
-    @TODO exclude
-    @TODO description
-    @TODO sources (e.g. allows empty for metapackage)
-     */
+  /**
+   * @group acceptsPostInst
+   * @test
+   */
+  public function acceptsPostInst()
+  {
+    $tmpfile = '/tmp/' . __CLASS__ . '-' . uniqid();
+    $this->maxConfig['postinst'] = "#!/bin/sh\ntouch {$tmpfile}";
+    $deb = new Debbie($this->maxConfig);
+    $this->assertFalse(is_readable($tmpfile));
+    $this->installDeb($deb->build());
+    $this->assertTrue(is_readable($tmpfile), $tmpfile);
   }
 
   /**
@@ -279,10 +298,10 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
-   * @group skipsDotDirsInSourceDirs
+   * @group excludesByPatternInSourceDirs
    * @test
    */
-  public function skipsDotDirsInSourceDirs()
+  public function excludesByPatternInSourceDirs()
   {
     $this->maxConfig['exclude'] = array('\'.[^.]*\'');
     $deb = new Debbie($this->maxConfig);
@@ -320,56 +339,5 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $list = $this->getDebContents($deb->build());
     $this->assertContains($dst, $list);
     $this->assertNotContains($src, $list);
-  }
-
-  /**
-   * @group acceptsPostInst
-   * @test
-   */
-  public function acceptsPostInst()
-  {
-    // sudo dpkg requirement
-    if ('jenkins' == $_SERVER['LOGNAME']) {
-      $this->markTestSkipped();
-    }
-
-    $this->maxConfig['postinst'] = "#!/bin/sh\ntouch {$tmpfile}";
-    $deb = new Debbie($this->maxConfig);
-    $tmpfile = '/tmp/' . __CLASS__ . '-' . uniqid();
-    $this->assertFalse(is_readable($tmpfile));
-    $this->installDeb($deb->build());
-    $this->assertTrue(is_readable($tmpfile), $tmpfile);
-  }
-
-  /**
-   * @group throwsOnMissingSheBang
-   * @test
-   */
-  public function throwsOnMissingSheBang()
-  {
-    $this->maxConfig['postinst'] = 'echo "text"';
-    $deb = new Debbie($this->maxConfig);
-    try {
-      $this->fail('did not detect missing shebang');
-    } catch (Exception $e) {
-      $message = $e->getMessage();
-    }
-    $this->assertRegExp(
-      '/' . $this->shortName . ': shebang directive required/',
-      $message
-    );
-  }
-
-  /**
-   * @group excludesSourceFiles
-   * @test
-   */
-  public function excludesSourceFiles()
-  {
-    $this->markTestIncomplete();
-    $exclusions = array(
-      "--exclude='.[^.]*'", '--exclude=cache', '--exclude=tmp',
-      '--exclude=temp', '--exclude=doc', '--exclude=docs'
-    );
   }
 }

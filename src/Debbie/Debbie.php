@@ -125,7 +125,7 @@ class Debbie
    *
    * @return array
    */
-  public function getNonEmptyConfigs()
+  public function getNonEmptyConfigKeys()
   {
     return array('arch', 'buildTime', 'shortName', 'version', 'workspaceBasedir');
   }
@@ -141,7 +141,7 @@ class Debbie
    */
   public function validateConfig(array $config)
   {
-    $nonEmpty = $this->getNonEmptyConfigs();
+    $nonEmpty = $this->getNonEmptyConfigKeys();
     foreach ($nonEmpty as $key) {
       if (empty($config[$key])) {
         throw new Exception("{$key} configuration value is required");
@@ -199,6 +199,8 @@ class Debbie
       // @codeCoverageIgnoreEnd
     }
 
+    $depends = implode(', ', $this->config['depends']);
+
     // Write info stored in /var/lib/dpkg/available after installation.
     $control = <<<CONTROL
 Package: {$this->config['shortName']}
@@ -206,7 +208,7 @@ Version: {$this->config['version']}
 Section: {$this->config['section']}
 Priority: {$this->config['priority']}
 Architecture: {$this->config['arch']}
-Depends: {$this->config['depends']}
+Depends: {$depends}
 Maintainer: {$this->config['maintainer']}
 Description: {$this->config['description']}
 CONTROL;
