@@ -6,20 +6,19 @@ require_once __DIR__ . '/../src/Debbie/Debbie.php';
 
 class DebbieTest extends PHPUnit_Framework_TestCase
 {
-  protected static $customWorkspaceBase = '/tmp/debbietest';
-
   public function setUp()
   {
     parent::setUp();
 
-    $this->shortName = 'debbie-test-' . uniqid();
-    $this->version = '1.2.3';
-    $this->depends = array('pkg1', 'pkg2', 'pkg3');
-    $this->dependsStr = implode(', ', $this->depends);
-    $this->section = 'test';
-    $this->arch = 'all';
-    $this->description = 'Test package for Debbie class';
-    $this->maintainer = 'DebbieTest Author <debbie@codeactual.com>';
+    $this->config = array(
+      'arch' => 'all',
+      'description' => 'Test package for Debbie class',
+      'maintainer' => 'DebbieTest Author <debbie@codeactual.com>',
+      'section' => 'test',
+      'shortName' => 'debbie-test-' . uniqid(),
+      'version' => '1.2.3-4.5',
+      'workspaceBasedir' => '/tmp/debbietest-workspace'
+    );
   }
 
   public function tearDown()
@@ -146,7 +145,9 @@ class DebbieTest extends PHPUnit_Framework_TestCase
       )
     );
     $info = $this->getDebInfo($deb->build());
-    $this->assertContains("Depends: {$this->dependsStr}", $info);
+      'depends' => array('pkg1', 'pkg2', 'pkg3'),
+    $dependsStr = implode(', ', $this->config['depends']);
+    $this->assertContains("Depends: {$dependsStr}", $info);
     $this->assertContains("Section: {$this->section}", $info);
     $this->assertContains("Architecture: {$this->arch}", $info);
 
@@ -179,14 +180,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceFile()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     $src = tempnam('/tmp', __CLASS__);
     $deb->addSource($src);
     $this->assertContains($src, $this->getDebContents($deb->build()));
@@ -198,14 +192,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceDir()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     $src = '/tmp/' . uniqid();
     mkdir($src);
     $deb->addSource($src);
@@ -218,14 +205,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceDirWithFile()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     $srcDir = '/tmp/' . uniqid();
     mkdir($srcDir);
     $srcFile = "{$srcDir}/" . uniqid();
@@ -240,15 +220,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function skipsDotDirsInSourceDirs()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'exclude' => array('\'.[^.]*\''),
-        'version' => $this->version
-      )
-    );
+    $this->config['exclude'] = array('\'.[^.]*\'');
+    $deb = new Debbie($this->config);
 
     $baseSrcDir = '/tmp/' . uniqid();
     mkdir($baseSrcDir);
@@ -274,14 +247,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function usesCustomDestination()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     $src = '/tmp/' . uniqid();
     $dst = '/tmp/' . uniqid();
     $this->assertNotSame($src, $dst);
@@ -298,18 +264,12 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function acceptsPostInst()
   {
+    // sudo dpkg requirement
     if ('jenkins' == $_SERVER['LOGNAME']) {
       $this->markTestSkipped();
     }
 
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     $tmpfile = '/tmp/' . __CLASS__ . '-' . uniqid();
     $this->assertFalse(is_readable($tmpfile));
     $postinst = "#!/bin/sh\ntouch {$tmpfile}";
@@ -324,14 +284,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function throwsOnMissingSheBang()
   {
-    $deb = new Debbie(
-      array(
-        'description' => $this->description,
-        'maintainer' => $this->maintainer,
-        'shortName' => $this->shortName,
-        'version' => $this->version,
-      )
-    );
+    $deb = new Debbie($this->config);
     try {
       $deb->setPostinst('echo "text"');
       $this->fail('did not detect missing shebang');
