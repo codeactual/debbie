@@ -49,12 +49,20 @@ class Debbie
    * Store configs and create the initial directories.
    *
    * @param array $this->config key/value pairs.
-   * - 'arch' (Optional, 'all')
-   * - 'buildTime' (Optional, current UTC in Ymd-His format)
-   * - 'depends' (Optional, array())
-   * - 'exclude' (Optional, array())
-   * - 'postinst' (Optional, '')
-   * - 'workspaceBasedir' (Optional, '/var/tmp/debbie')
+   * - Required keys:
+   *   'description'
+   *   'maintainer'
+   *   'section'
+   *   'shortName'
+   *   'version'
+   * - Optional keys and their default values:
+   *   'arch': 'all'
+   *   'buildTime': Current UTC in Ymd His format
+   *   'depends': array()
+   *   'exclude': array()
+   *   'postinst': ''
+   *   'workspaceBasedir': '/var/tmp/debbie'
+   * - Remaining keys may be overridable via methods like setPostinst().
    * @param string $shortName Deb filename: <short>_<version>_<arch>.
    * @param string $version
    * @param string $depends (optional, '') Package dependency list.
@@ -67,10 +75,6 @@ class Debbie
     $config = $this->applyConfigDefaults($config);
     $this->validateConfig($config);
     $this->config = $config;
-
-    if (!file_exists($this->config['pkgDir'])) {
-      $this->runCmd("mkdir -p {$this->config['pkgDir']}");
-    }
   }
 
   /**
@@ -168,6 +172,25 @@ class Debbie
     // Trailing newline required by `dpkg-deb`.
     $this->config['description'] = trim($this->config['description']) . "\n";
 
+    // Create a workspace subdir for this specific build.
+    if (!file_exists($this->config['pkgDir'])) {
+      $this->runCmd("mkdir -p {$this->config['pkgDir']}");
+    }
+
+    // Write hook scripts (e.g. for post installation).
+    $debDir = "{$this->config['pkgDir']}/DEBIAN";
+    $this->runCmd("mkdir {$debDir}");
+    $script_names = array('postinst');
+    foreach ($script_names as $name) {
+      // @codeCoverageIgnoreStart
+      if ($this->config[$name]) {
+        file_put_contents("{$debDir}/{$name}", $this->config[$name]);
+        chmod("{$debDir}/{$name}", 0755);
+      }
+      // @codeCoverageIgnoreEnd
+    }
+
+    // Write info stored in /var/lib/dpkg/available after installation.
     $control = <<<CONTROL
 Package: {$this->config['shortName']}
 Version: {$this->config['version']}
@@ -178,22 +201,7 @@ Depends: {$this->config['depends']}
 Maintainer: {$this->config['maintainer']}
 Description: {$this->config['description']}
 CONTROL;
-
-    // Create a workspace subdir.
-    $debDir = "{$this->config['pkgDir']}/DEBIAN";
-    $this->runCmd("mkdir -p {$debDir}");
     file_put_contents("{$debDir}/control", $control);
-
-    // Write hook scripts (e.g. post installation).
-    $script_names = array('postinst');
-    foreach ($script_names as $name) {
-      // @codeCoverageIgnoreStart
-      if ($this->config[$name]) {
-        file_put_contents("{$debDir}/{$name}", $this->config[$name]);
-        chmod("{$debDir}/{$name}", 0755);
-      }
-      // @codeCoverageIgnoreEnd
-    }
 
     // Copy all source files to the workspace.
     if ($this->config['sources']) {
