@@ -34,6 +34,7 @@ class Debbie
    * - string 'fullName' Package full name e.g. 'wget_1.12-2.1_amd64'.
    * - string 'pkgDir' Source files absolute path (under $buildDir).
    * - string 'postinst' Shell script body ran after installation.
+   *   Shebang required.
    * - string 'section' Package section, e.g. 'web'.
    * - string 'shortName' Package short name, e.g. 'wget'.
    * - array 'sources' Source file/dir objects.
@@ -89,7 +90,7 @@ class Debbie
       'arch' => 'all',
       'buildTime' =>  gmdate(self::DEFAULT_BUILDTIME_FORMAT),
       'description' => '',
-      'depends' => '',
+      'depends' => array(),
       'exclude' => array(),
       'maintainer' => '',
       'postinst' => '',
@@ -99,7 +100,11 @@ class Debbie
     );
     $config = array_merge($defaults, $config);
 
+    if ($config['postinst']) {
+      $config['postinst'] = rtrim($config['postinst']) . "\n";
+    }
     $config['sources'] = array();
+
     $config['fullName'] = sprintf(
       '%s_%s_%s',
       $config['shortName'], $config['version'], $config['arch']
@@ -142,6 +147,9 @@ class Debbie
         throw new Exception("{$key} configuration value is required");
       }
     }
+    if ($config['postinst'] && 0 !== strpos($config['postinst'], '#!/')) {
+      throw new Exception("{$config['shortName']}: shebang directive required");
+    }
   }
 
   /**
@@ -167,6 +175,7 @@ class Debbie
    */
   public function build()
   {
+    // Use before method exit (including exceptions) for restoration.
     $prevCwd = getcwd();
 
     // Trailing newline required by `dpkg-deb`.
@@ -203,7 +212,6 @@ Description: {$this->config['description']}
 CONTROL;
     file_put_contents("{$debDir}/control", $control);
 
-    // Copy all source files to the workspace.
     if ($this->config['sources']) {
       // Used outside the loop for a follow-up task. More docs there.
       $sourceFilePresent = false;
@@ -227,7 +235,7 @@ CONTROL;
           $this->runCmd("mkdir -p {$source['dst']}");
         }
 
-        // Use `cp` or `rsync` to copy the files from / to the workspace root.
+        // Use `cp` or `rsync` to copy the files rooted in / to this build's root.
         if (is_file($source['src'])) {
           $this->runCmd("cp -a {$source['src']} {$source['dst']}");
           $sourceFilePresent = true;
@@ -283,25 +291,6 @@ CONTROL;
   {
     $this->config['sources'][] = array('src' => $src, 'dst' => $dst);
   }
-
-  /**
-   * Write access to $this->postinst
-   *
-   * @param string $postinst
-   * @return void
-   * @throws Exception
-   * - on missing shebang
-   */
-  public function setPostinst($postinst)
-  {
-    if (0 !== strpos($postinst, '#!/')) {
-      throw new Exception("{$this->config['shortName']}: shebang directive required");
-    }
-
-    // @codeCoverageIgnoreStart
-    $this->config['postinst'] = rtrim($postinst, "\n") . "\n";
-  }
-  // @codeCoverageIgnoreEnd
 
   /**
    * Read access to $this->config.

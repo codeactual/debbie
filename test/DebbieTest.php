@@ -10,14 +10,26 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     parent::setUp();
 
-    $this->config = array(
-      'arch' => 'all',
+    // All options defined.
+    $this->maxConfig = array(
+      'arch' => 'amd64',
+      'buildTime' => '2011-11-10',
       'description' => 'Test package for Debbie class',
       'maintainer' => 'DebbieTest Author <debbie@codeactual.com>',
+      'postinst' => "#!/bin/sh\necho ''",
       'section' => 'test',
       'shortName' => 'debbie-test-' . uniqid(),
       'version' => '1.2.3-4.5',
-      'workspaceBasedir' => '/tmp/debbietest-workspace'
+      'workspaceBasedir' => '/tmp/debbietest-workspace',
+    );
+
+    // Only required options defined.
+    $this->minConfig = array(
+      'description' => $this->maxConfig['description'],
+      'maintainer' => $this->maxConfig['maintainer'],
+      'section' => $this->maxConfig['section'],
+      'shortName' => $this->maxConfig['shortName'],
+      'version' => $this->maxConfig['version']
     );
   }
 
@@ -28,7 +40,6 @@ class DebbieTest extends PHPUnit_Framework_TestCase
       $this->uninstallDeb($this->shortName);
     }
   }
-
 
   /**
    * Get a deb's file list.
@@ -89,6 +100,59 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
+   * @group appliesDefaultConfig
+   * @test
+   */
+  public function appliesDefaultConfig()
+  {
+    $deb = new Debbie($this->minConfig);
+    $actual = $deb->getConfig();
+    $this->assertSame('all', $actual['arch']);
+    $this->assertSame(gmdate(Debbie::DEFAULT_BUILDTIME_FORMAT), $actual['buildTime']);
+    $this->assertSame(array(), $actual['depends']);
+    $this->assertSame(array(), $actual['exclude']);
+    $this->assertSame('', $actual['postinst']);
+    $this->assertSame('optional', $actual['priority']);
+    $this->assertSame(array(), $actual['sources']);
+    $this->assertSame(Debbie::DEFAULT_WORKSPACE_BASEDIR, $actual['workspaceBasedir']);
+  }
+
+  /**
+   * @group buildsFullName
+   * @test
+   */
+  public function buildsFullName()
+  {
+    $deb = new Debbie($this->maxConfig);
+    $actual = $deb->getConfig();
+    $this->assertSame(
+      "{$this->maxConfig['shortName']}_{$this->maxConfig['version']}_{$this->maxConfig['arch']}",
+      $actual['fullName']
+    );
+  }
+
+  /**
+   * @group buildsPackageWorkspaceDir
+   * @test
+   */
+  public function buildsPackageWorkspaceDir()
+  {
+    $deb = new Debbie($this->maxConfig);
+    $actual = $deb->getConfig();
+    $this->assertSame(
+      sprintf(
+        '%s/%s/%s/%s/%s',
+        $this->maxConfig['workspaceBasedir'],
+        $this->maxConfig['shortName'],
+        $this->maxConfig['version'],
+        $this->maxConfig['buildTime'],
+        $actual['fullName']
+      ),
+      $actual['pkgDir']
+    );
+  }
+
+  /**
    * @group validatesConfig
    * @test
    */
@@ -99,10 +163,10 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
-   * @group appliesDefaultConfig
+   * @group appliesDefaultConfig2
    * @test
    */
-  public function appliesDefaultConfig()
+  public function appliesDefaultConfig2()
   {
     // TODO check other tests for overlap
     $this->markTestIncomplete();
@@ -146,7 +210,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     );
     $info = $this->getDebInfo($deb->build());
       'depends' => array('pkg1', 'pkg2', 'pkg3'),
-    $dependsStr = implode(', ', $this->config['depends']);
+    $dependsStr = implode(', ', $this->maxConfig['depends']);
     $this->assertContains("Depends: {$dependsStr}", $info);
     $this->assertContains("Section: {$this->section}", $info);
     $this->assertContains("Architecture: {$this->arch}", $info);
@@ -180,7 +244,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceFile()
   {
-    $deb = new Debbie($this->config);
+    $deb = new Debbie($this->maxConfig);
     $src = tempnam('/tmp', __CLASS__);
     $deb->addSource($src);
     $this->assertContains($src, $this->getDebContents($deb->build()));
@@ -192,7 +256,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceDir()
   {
-    $deb = new Debbie($this->config);
+    $deb = new Debbie($this->maxConfig);
     $src = '/tmp/' . uniqid();
     mkdir($src);
     $deb->addSource($src);
@@ -205,7 +269,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function copiesSourceDirWithFile()
   {
-    $deb = new Debbie($this->config);
+    $deb = new Debbie($this->maxConfig);
     $srcDir = '/tmp/' . uniqid();
     mkdir($srcDir);
     $srcFile = "{$srcDir}/" . uniqid();
@@ -220,8 +284,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function skipsDotDirsInSourceDirs()
   {
-    $this->config['exclude'] = array('\'.[^.]*\'');
-    $deb = new Debbie($this->config);
+    $this->maxConfig['exclude'] = array('\'.[^.]*\'');
+    $deb = new Debbie($this->maxConfig);
 
     $baseSrcDir = '/tmp/' . uniqid();
     mkdir($baseSrcDir);
@@ -247,7 +311,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function usesCustomDestination()
   {
-    $deb = new Debbie($this->config);
+    $deb = new Debbie($this->maxConfig);
     $src = '/tmp/' . uniqid();
     $dst = '/tmp/' . uniqid();
     $this->assertNotSame($src, $dst);
@@ -269,11 +333,10 @@ class DebbieTest extends PHPUnit_Framework_TestCase
       $this->markTestSkipped();
     }
 
-    $deb = new Debbie($this->config);
+    $this->maxConfig['postinst'] = "#!/bin/sh\ntouch {$tmpfile}";
+    $deb = new Debbie($this->maxConfig);
     $tmpfile = '/tmp/' . __CLASS__ . '-' . uniqid();
     $this->assertFalse(is_readable($tmpfile));
-    $postinst = "#!/bin/sh\ntouch {$tmpfile}";
-    $deb->setPostinst($postinst);
     $this->installDeb($deb->build());
     $this->assertTrue(is_readable($tmpfile), $tmpfile);
   }
@@ -284,9 +347,9 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function throwsOnMissingSheBang()
   {
-    $deb = new Debbie($this->config);
+    $this->maxConfig['postinst'] = 'echo "text"';
+    $deb = new Debbie($this->maxConfig);
     try {
-      $deb->setPostinst('echo "text"');
       $this->fail('did not detect missing shebang');
     } catch (Exception $e) {
       $message = $e->getMessage();
