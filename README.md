@@ -9,8 +9,8 @@ PHP class for building Debian packages.
 $config = array(
   'arch' => 'amd64',
   'buildId' => '2011-11-10',
-  'description' => 'Meta package for EC2 database master',
   'depends' => array('mysql-server'),
+  'description' => 'Meta package for EC2 database master',
   'maintainer' => 'Package Author <you@gmail.com>',
   'postinst' => file_get_contents($postInstallScriptFile),
   'section' => 'db',
