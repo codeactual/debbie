@@ -183,6 +183,22 @@ class Debbie
     $this->config['description'] = trim($this->config['description']) . "\n";
 
     // Create a workspace subdir for this specific build.
+    //
+    // Example hierarchy where 'workspaceBasedir' is '/tmp/myworkspace':
+    // tmp/
+    //   myworkspace/
+    //     mypackage/
+    //       2.0/
+    //         2011-11-10/
+    //           mypackage_2.0_amd64/
+    //             sourcedir1/
+    //               sourcefile
+    //             sourcedir2/
+    //               sourcefile
+    //             DEBIAN/
+    //               control
+    //               md5sums
+    //           mypackage_2.0_amd.deb
     if (!file_exists($this->config['pkgDir'])) {
       $this->runCmd("mkdir -p {$this->config['pkgDir']}");
     }
