@@ -20,6 +20,7 @@ $config = array(
 $deb = new Debbie($config);
 $deb->addSource('/etc/my.cnf');
 $deb->build();
+```
 
 ## Requirements
 
