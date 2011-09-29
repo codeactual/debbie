@@ -156,6 +156,7 @@ class Debbie
   /**
    * Run a shell command.
    *
+   * @param string $cmd
    * @return void
    * @throw Exception
    * - on non-zero exit code
