@@ -18,7 +18,18 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->dependsStr = implode(', ', $this->depends);
     $this->section = 'test';
     $this->arch = 'all';
+    $this->description = 'Test package for Debbie class';
+    $this->maintainer = 'DebbieTest Author <debbie@codeactual.com>';
   }
+
+  public function tearDown()
+  {
+    parent::tearDown();
+    if ($this->isDebInstalled($this->shortName)) {
+      $this->uninstallDeb($this->shortName);
+    }
+  }
+
 
   /**
    * Get a deb's file list.
@@ -26,7 +37,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    * @param string $file Package location.
    * @return string
    */
-  public function getDebList($file)
+  public function getDebContents($file)
   {
     return shell_exec("dpkg-deb --contents {$file}");
   }
@@ -69,6 +80,16 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   }
 
   /**
+   * Verify a package is installed.
+   *
+   * @return bool
+   */
+  public function isDebInstalled($name)
+  {
+    return false !== strpos(shell_exec("dpkg --status {$name} 2>&1"), 'Status: install');
+  }
+
+  /**
    * @group validatesConfig
    * @test
    */
@@ -88,7 +109,9 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->markTestIncomplete();
     /*$deb = new Debbie(
       array(
+        'description' => $this->description,
         'depends' => $this->depends,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -115,6 +138,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
       array(
         'arch' => $this->arch,
         'depends' => $this->depends,
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'section' => $this->section,
         'shortName' => $this->shortName,
         'version' => $this->version
@@ -128,6 +153,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     // defaults
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -154,13 +181,15 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
     );
     $src = tempnam('/tmp', __CLASS__);
     $deb->addSource($src);
-    $this->assertContains($src, $this->getDebList($deb->build()));
+    $this->assertContains($src, $this->getDebContents($deb->build()));
   }
 
   /**
@@ -171,6 +200,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -178,7 +209,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $src = '/tmp/' . uniqid();
     mkdir($src);
     $deb->addSource($src);
-    $this->assertContains($src, $this->getDebList($deb->build()));
+    $this->assertContains($src, $this->getDebContents($deb->build()));
   }
 
   /**
@@ -189,6 +220,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -198,7 +231,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $srcFile = "{$srcDir}/" . uniqid();
     touch($srcFile);
     $deb->addSource($srcDir);
-    $this->assertContains($srcFile, $this->getDebList($deb->build()));
+    $this->assertContains($srcFile, $this->getDebContents($deb->build()));
   }
 
   /**
@@ -209,8 +242,11 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
-        'version' => $this->version,
+        'exclude' => array('\'.[^.]*\''),
+        'version' => $this->version
       )
     );
 
@@ -225,9 +261,9 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     touch($unexpectedFile);
 
     $deb->addSource($baseSrcDir);
-    $debList = $this->getDebList($deb->build());
+    $debList = $this->getDebContents($deb->build());
     $this->assertContains($expectedFile, $debList);
-    $this->assertNotContains($unexpectedFile, $debList);
+    $this->assertNotContains($unexpectedFile, $debList, $debList);
   }
 
   /**
@@ -240,6 +276,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -249,7 +287,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->assertNotSame($src, $dst);
     mkdir($src);
     $deb->addSource($src, $dst);
-    $list = $this->getDebList($deb->build());
+    $list = $this->getDebContents($deb->build());
     $this->assertContains($dst, $list);
     $this->assertNotContains($src, $list);
   }
@@ -266,6 +304,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
 
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )
@@ -276,7 +316,6 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $deb->setPostinst($postinst);
     $this->installDeb($deb->build());
     $this->assertTrue(is_readable($tmpfile), $tmpfile);
-    $this->uninstallDeb($this->shortName);
   }
 
   /**
@@ -287,6 +326,8 @@ class DebbieTest extends PHPUnit_Framework_TestCase
   {
     $deb = new Debbie(
       array(
+        'description' => $this->description,
+        'maintainer' => $this->maintainer,
         'shortName' => $this->shortName,
         'version' => $this->version,
       )

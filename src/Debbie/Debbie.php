@@ -132,7 +132,7 @@ class Debbie
    */
   public function validateConfig(array $config)
   {
-    $nonEmpty = $this_>getNonEmptyConfigs();
+    $nonEmpty = $this->getNonEmptyConfigs();
     foreach ($nonEmpty as $key) {
       if (empty($config[$key])) {
         throw new Exception("{$key} configuration value is required");
