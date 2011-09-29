@@ -20,7 +20,7 @@ class Debbie
   const DEFAULT_WORKSPACE_BASEDIR = '/var/tmp/debbie';
 
   /**
-   * @const gmdate() format for default $this->config['buildTime'] value.
+   * @const gmdate() format for default $this->config['buildId'] value.
    */
   const DEFAULT_BUILDTIME_FORMAT = 'Ymd-His';
 
@@ -28,7 +28,7 @@ class Debbie
    * @var array Configuration key/value pairs.
    * - string 'arch' Package arch, e.g. 'amd64'.
    * - string 'buildDir' Build dir absolute path (under $versionDir).
-   * - string 'buildTime' Timestamp.
+   * - string 'buildId' Timestamp, domain-specific ID, etc.
    * - string 'depends' Package dependencies in "control" file format.
    * - array 'exclude' `rsync` --exclude values filtering source directories.
    * - string 'fullName' Package full name e.g. 'wget_1.12-2.1_amd64'.
@@ -58,7 +58,7 @@ class Debbie
    *   'version'
    * - Optional keys and their default values:
    *   'arch': 'all'
-   *   'buildTime': Current UTC in Ymd His format
+   *   'buildId': Current UTC in Ymd His format
    *   'depends': array()
    *   'exclude': array()
    *   'postinst': ''
@@ -69,7 +69,8 @@ class Debbie
    * @param string $depends (optional, '') Package dependency list.
    * @param string $section (Optional, 'web') Package section.
    * @param string $arch (Optional, 'all') Package target architecture.
-   * @param string $buildTime (Optional, gmdate('Ymd-His)) Timestamp appended to the build dir name.
+   * @param string $buildId (Optional, gmdate('Ymd-His))
+   * - Unique string appended to the build dir name.
    */
   public function __construct(array $config)
   {
@@ -88,7 +89,7 @@ class Debbie
   {
     $defaults = array(
       'arch' => 'all',
-      'buildTime' =>  gmdate(self::DEFAULT_BUILDTIME_FORMAT),
+      'buildId' =>  gmdate(self::DEFAULT_BUILDTIME_FORMAT),
       'description' => '',
       'depends' => array(),
       'exclude' => array(),
@@ -113,7 +114,7 @@ class Debbie
       '%s/%s/%s',
       $config['workspaceBasedir'], $config['shortName'], $config['version']
     );
-    $config['buildDir'] = "{$config['versionDir']}/" . $config['buildTime'];
+    $config['buildDir'] = "{$config['versionDir']}/" . $config['buildId'];
     $config['pkgDir'] = "{$config['buildDir']}/{$config['fullName']}";
 
     return $config;
@@ -127,7 +128,7 @@ class Debbie
    */
   public function getNonEmptyConfigKeys()
   {
-    return array('arch', 'buildTime', 'shortName', 'version', 'workspaceBasedir');
+    return array('arch', 'buildId', 'shortName', 'version', 'workspaceBasedir');
   }
 
   /**

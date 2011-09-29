@@ -16,14 +16,14 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     // All options defined.
     $this->maxConfig = array(
       'arch' => 'amd64',
-      'buildTime' => '2011-11-10',
+      'buildId' => '2011-11-10',
       'description' => 'Test package for Debbie class',
       'maintainer' => 'DebbieTest Author <debbie@codeactual.com>',
       'postinst' => "#!/bin/sh\necho ''",
       'section' => 'test',
       'shortName' => 'debbie-test',
       'version' => '1.2.3-4.5',
-      'workspaceBasedir' => '/tmp/debbietest-workspace',
+      'workspaceBasedir' => '/tmp/debbietest-workspace'
     );
 
     // Only required options defined.
@@ -135,7 +135,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $deb = new Debbie($this->minConfig);
     $actual = $deb->getConfig();
     $this->assertSame('all', $actual['arch']);
-    $this->assertSame(gmdate(Debbie::DEFAULT_BUILDTIME_FORMAT), $actual['buildTime']);
+    $this->assertSame(gmdate(Debbie::DEFAULT_BUILDTIME_FORMAT), $actual['buildId']);
     $this->assertSame(array(), $actual['depends']);
     $this->assertSame(array(), $actual['exclude']);
     $this->assertSame('', $actual['postinst']);
@@ -194,7 +194,7 @@ class DebbieTest extends PHPUnit_Framework_TestCase
         $this->maxConfig['workspaceBasedir'],
         $this->maxConfig['shortName'],
         $this->maxConfig['version'],
-        $this->maxConfig['buildTime'],
+        $this->maxConfig['buildId'],
         $actual['fullName']
       ),
       $actual['pkgDir']
