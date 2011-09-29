@@ -30,6 +30,7 @@ class Debbie
    * - string 'buildDir' Build dir absolute path (under $versionDir).
    * - string 'buildTime' Timestamp.
    * - string 'depends' Package dependencies in "control" file format.
+   * - array 'exclude' `rsync` --exclude values filtering source directories.
    * - string 'fullName' Package full name e.g. 'wget_1.12-2.1_amd64'.
    * - string 'pkgDir' Source files absolute path (under $buildDir).
    * - string 'postinst' Shell script body ran after installation.
@@ -50,7 +51,8 @@ class Debbie
    * @param array $this->config key/value pairs.
    * - 'arch' (Optional, 'all')
    * - 'buildTime' (Optional, current UTC in Ymd-His format)
-   * - 'depends' (Optional, '')
+   * - 'depends' (Optional, array())
+   * - 'exclude' (Optional, array())
    * - 'postinst' (Optional, '')
    * - 'workspaceBasedir' (Optional, '/var/tmp/debbie')
    * @param string $shortName Deb filename: <short>_<version>_<arch>.
@@ -65,6 +67,10 @@ class Debbie
     $config = $this->applyConfigDefaults($config);
     $this->validateConfig($config);
     $this->config = $config;
+
+    if (!file_exists($this->config['pkgDir'])) {
+      $this->runCmd("mkdir -p {$this->config['pkgDir']}");
+    }
   }
 
   /**
@@ -78,18 +84,22 @@ class Debbie
     $defaults = array(
       'arch' => 'all',
       'buildTime' =>  gmdate(self::DEFAULT_BUILDTIME_FORMAT),
+      'description' => '',
       'depends' => '',
+      'exclude' => array(),
+      'maintainer' => '',
       'postinst' => '',
+      'priority' => 'optional',
       'sources' => array(),
       'workspaceBasedir' => self::DEFAULT_WORKSPACE_BASEDIR
     );
     $config = array_merge($defaults, $config);
 
+    $config['sources'] = array();
     $config['fullName'] = sprintf(
       '%s_%s_%s',
       $config['shortName'], $config['version'], $config['arch']
     );
-    $config['sources'] = array();
     $config['versionDir'] = sprintf(
       '%s/%s/%s',
       $config['workspaceBasedir'], $config['shortName'], $config['version']
@@ -98,6 +108,17 @@ class Debbie
     $config['pkgDir'] = "{$config['buildDir']}/{$config['fullName']}";
 
     return $config;
+  }
+
+  /**
+   * Return $this->config keys which must have non-empty values.
+   * - Isolated for unit test use.
+   *
+   * @return array
+   */
+  public function getNonEmptyConfigs()
+  {
+    return array('arch', 'buildTime', 'shortName', 'version', 'workspaceBasedir');
   }
 
   /**
@@ -111,14 +132,11 @@ class Debbie
    */
   public function validateConfig(array $config)
   {
-    /*foreach ($config as $key => $val) {
-      if (empty($val)) {
+    $nonEmpty = $this_>getNonEmptyConfigs();
+    foreach ($nonEmpty as $key) {
+      if (empty($config[$key])) {
         throw new Exception("{$key} configuration value is required");
       }
-    }*/
-
-    if (!file_exists($config['pkgDir'])) {
-      $this->runCmd("mkdir -p {$config['pkgDir']}");
     }
   }
 
@@ -139,95 +157,110 @@ class Debbie
   }
 
   /**
-   * Build package using collected settings.
+   * Build the .deb.
    *
-   * @return string Absolute path to built package.
+   * @return string Absolute path to final package.
    */
   public function build()
   {
-    // trailing newline required
-    $description = "Automated build of {$this->config['fullName']} ({$this->config['buildTime']})\n";
+    $prevCwd = getcwd();
+
+    // Trailing newline required by `dpkg-deb`.
+    $this->config['description'] = trim($this->config['description']) . "\n";
 
     $control = <<<CONTROL
 Package: {$this->config['shortName']}
 Version: {$this->config['version']}
 Section: {$this->config['section']}
-Priority: optional
+Priority: {$this->config['priority']}
 Architecture: {$this->config['arch']}
 Depends: {$this->config['depends']}
-Maintainer: Code Actual
-Description: {$description}
+Maintainer: {$this->config['maintainer']}
+Description: {$this->config['description']}
 CONTROL;
 
-    // prepare packaging
+    // Create a workspace subdir.
     $debDir = "{$this->config['pkgDir']}/DEBIAN";
     $this->runCmd("mkdir -p {$debDir}");
     file_put_contents("{$debDir}/control", $control);
 
-    // create event scripts
+    // Write hook scripts (e.g. post installation).
     $script_names = array('postinst');
     foreach ($script_names as $name) {
+      // @codeCoverageIgnoreStart
       if ($this->config[$name]) {
-        // @codeCoverageIgnoreStart
         file_put_contents("{$debDir}/{$name}", $this->config[$name]);
         chmod("{$debDir}/{$name}", 0755);
       }
       // @codeCoverageIgnoreEnd
     }
 
-    // copy package source files
+    // Copy all source files to the workspace.
     if ($this->config['sources']) {
-      $md5Required = false;
-      foreach ($this->config['sources'] as $file) {
-        if ($file['dst']) {
+      // Used outside the loop for a follow-up task. More docs there.
+      $sourceFilePresent = false;
+
+      foreach ($this->config['sources'] as $source) {
+        // Rewrite destination directories as rooted in 'pkgDir'.
+        if ($source['dst']) {
           $customDst = true;
-          $file['dst'] = "{$this->config['pkgDir']}/" . ltrim($file['dst'], '/');
+          $source['dst'] = "{$this->config['pkgDir']}/" . ltrim($source['dst'], '/');
         } else {
           $customDst = false;
-          $file['dst'] = "{$this->config['pkgDir']}/";
-          if (is_dir($file['src'])) {
-            $file['dst'] .= ltrim($file['src'], '/');
+          $source['dst'] = "{$this->config['pkgDir']}/";
+          if (is_dir($source['src'])) {
+            $source['dst'] .= ltrim($source['src'], '/');
           } else {
-            $file['dst'] .= ltrim(dirname($file['src']), '/');
+            $source['dst'] .= ltrim(dirname($source['src']), '/');
           }
         }
 
-        if (!file_exists($file['dst'])) {
-          $this->runCmd("mkdir -p {$file['dst']}");
+        if (!file_exists($source['dst'])) {
+          $this->runCmd("mkdir -p {$source['dst']}");
         }
 
-        $defaultCp = "cp -a {$file['src']} {$file['dst']}";
-
-        if (is_file($file['src'])) {
-          $this->runCmd($defaultCp);
-          $md5Required = true;
+        // Use `cp` or `rsync` to copy the files from / to the workspace root.
+        if (is_file($source['src'])) {
+          $this->runCmd("cp -a {$source['src']} {$source['dst']}");
+          $sourceFilePresent = true;
         } else {
-          $exclusions = array(
-            "--exclude='.[^.]*'", '--exclude=cache', '--exclude=tmp',
-            '--exclude=temp', '--exclude=doc', '--exclude=docs'
-          );
+          $exclusions = array();
+          foreach ($this->config['exclude'] as $exclude) {
+            $exclusions[] = "--exclude={$exclude}";
+          }
           $this->runCmd(
             sprintf(
               "rsync --recursive %s %s %s",
               implode(' ', $exclusions),
-              $file['src'],
-              $customDst ? $file['dst'] : dirname($file['dst'])
+              $source['src'],
+              $customDst ? $source['dst'] : dirname($source['dst'])
             )
           );
         }
       }
 
-      // at least 1 source is a file
-      if ($md5Required) {
+      // At least 1 source is a file (e.g. not a meta-package),
+      // so include an MD5 manifest.
+      if ($sourceFilePresent) {
         chdir($this->config['pkgDir']);
-        $this->runCmd("md5sum `find . -type f | grep -v '^[.]/DEBIAN/'` >DEBIAN/md5sums");
+        try {
+          $this->runCmd("md5sum `find . -type f | grep -v '^[.]/DEBIAN/'` >DEBIAN/md5sums");
+        } catch (Exception $e) {
+          chdir($prevCwd);
+          throw $e;
+        }
       }
     }
 
-    // build package
     chdir($this->config['buildDir']);
-    $this->runCmd("dpkg-deb -b {$this->config['fullName']}");
+    try {
+      $this->runCmd("dpkg-deb -b {$this->config['fullName']}");
+    } catch (Exception $e) {
+      chdir($prevCwd);
+      throw $e;
+    }
 
+    chdir($prevCwd);
     return "{$this->config['buildDir']}/{$this->config['fullName']}.deb";
   }
 

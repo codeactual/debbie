@@ -136,6 +136,13 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->assertContains("Depends: \n", $info);
     $this->assertContains('Section: web', $info);
     $this->assertContains('Architecture: all', $info);
+
+
+    @TODO priority
+    @TODO maintainer
+    @TODO exclude
+    @TODO description
+    @TODO sources (e.g. allows empty for metapackage)
      */
   }
 
@@ -293,6 +300,19 @@ class DebbieTest extends PHPUnit_Framework_TestCase
     $this->assertRegExp(
       '/' . $this->shortName . ': shebang directive required/',
       $message
+    );
+  }
+
+  /**
+   * @group excludesSourceFiles
+   * @test
+   */
+  public function excludesSourceFiles()
+  {
+    $this->markTestIncomplete();
+    $exclusions = array(
+      "--exclude='.[^.]*'", '--exclude=cache', '--exclude=tmp',
+      '--exclude=temp', '--exclude=doc', '--exclude=docs'
     );
   }
 }
