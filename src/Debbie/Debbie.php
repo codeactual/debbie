@@ -136,7 +136,7 @@ class Debbie
    *
    * @param array $config
    * @return void
-   * @throw Exception
+   * @throws Exception
    * - on invalid value
    * - on missing key
    */
@@ -158,7 +158,7 @@ class Debbie
    *
    * @param string $cmd
    * @return void
-   * @throw Exception
+   * @throws Exception
    * - on non-zero exit code
    */
   public function runCmd($cmd)
