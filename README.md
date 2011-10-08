@@ -2,6 +2,8 @@
 
 PHP class for building Debian packages.
 
+High unit test coverage using PHPUnit.
+
 ## Usage
 
 ``` php
