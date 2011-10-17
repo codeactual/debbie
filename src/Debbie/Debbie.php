@@ -47,6 +47,11 @@ class Debbie
   protected $config;
 
   /**
+   * @var string Last output produced by runCmd().
+   */
+  protected $output;
+
+  /**
    * Store configs and create the initial directories.
    *
    * @param array $this->config key/value pairs.
@@ -164,10 +169,22 @@ class Debbie
   public function runCmd($cmd)
   {
     $returnVar = null;
-    passthru($cmd, $returnVar);
+    $lines = array();
+    exec($cmd, $lines, $returnVar);
+    $this->output = implode("\n", $lines);
     if ($returnVar !== 0) {
       throw Exception("{$cmd}: exited with code {$returnVar}");
     }
+  }
+
+  /**
+   * Read access to $this->output.
+   *
+   * @return string.
+   */
+  public function getOutput()
+  {
+    return $this->output;
   }
 
   /**

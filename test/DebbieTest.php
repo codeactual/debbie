@@ -77,9 +77,10 @@ class DebbieTest extends PHPUnit_Framework_TestCase
    */
   public function installDeb($file)
   {
+    $lines = array();
     $returnVar = '';
-    system("sudo dpkg -i {$file}", $returnVar);
-    $this->assertSame(0, $returnVar);
+    exec("sudo dpkg -i {$file}", $lines, $returnVar);
+    $this->assertSame(0, $returnVar, implode("\n", $lines));
   }
 
   /**
@@ -198,6 +199,20 @@ class DebbieTest extends PHPUnit_Framework_TestCase
         $actual['fullName']
       ),
       $actual['pkgDir']
+    );
+  }
+
+  /**
+   * @group returnsLastCommandOutput
+   * @test
+   */
+  public function returnsLastCommandOutput()
+  {
+    $deb = new Debbie($this->maxConfig);
+    $deb->build();
+    $this->assertContains(
+      "dpkg-deb: building package `{$this->maxConfig['shortName']}'",
+      $deb->getOutput()
     );
   }
 
