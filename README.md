@@ -33,7 +33,7 @@ $config = array(
   'workspaceBasedir' => '/tmp/deb-workspace/ec2-dbmaster'
 );
 $deb = new Debbie($config);
-$deb->addSource('/etc/my.cnf');
+$deb->addSource('/etc/mysql/my.cnf');
 $debFilename = $deb->build();
 ```
 
