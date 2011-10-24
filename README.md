@@ -4,6 +4,18 @@ PHP class for building Debian packages.
 
 High unit test coverage using PHPUnit.
 
+## API
+
+```$deb = new Debbie($config);```
+
+<code>[addSource](https://github.com/codeactual/debbie/blob/524997a50999713ff7259ca953ac57e2236097cc/src/Debbie/Debbie.php#L321)($src, $dst = '')</code>
+
+> Adds a file to the package manifest and an (optional) alternate install desintation.
+
+<code>[build](https://github.com/codeactual/debbie/blob/524997a50999713ff7259ca953ac57e2236097cc/src/Debbie/Debbie.php#L191)()</code>
+
+> Builds the `.deb` file and returns its location.
+
 ## Usage
 
 ``` php
